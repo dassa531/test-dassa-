@@ -24,7 +24,6 @@ def scrape_link(url, search_query):
     except: return None
 
 def get_direct_video(url):
-    # yt-dlp පාවිච්චි කරලා direct links ගැනීම
     ydl_opts = {'quiet': True, 'no_warnings': True, 'format': 'best'}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -43,7 +42,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
 
-    # 1. Social Media Video Downloader (FB, YT, Insta, etc)
     if "http" in query:
         st = await update.message.reply_text("🔎 වීඩියෝව පරීක්ෂා කරමින් පවතී...")
         try:
@@ -51,9 +49,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("📥 Download Video", url=data['url'])]]
             await st.edit_text(f"📽️ **Found:** {data['title'][:60]}", reply_markup=InlineKeyboardMarkup(keyboard))
         except: 
-            await st.edit_text("❌ වීඩියෝව සොයාගත නොහැකි විය. ලින්ක් එක නිවැරදිදැයි බලන්න.")
+            await st.edit_text("❌ වීඩියෝව සොයාගත නොහැකි විය.")
 
-    # 2. Song Downloader
     elif query.lower().startswith("song "):
         st = await update.message.reply_text("🎵 සිංදුව සොයමින් පවතී...")
         try:
@@ -63,7 +60,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: 
             await st.edit_text("❌ සිංදුව හමු වුණේ නැහැ.")
 
-    # 3. Movie Search
     else:
         res = requests.get(f"http://www.omdbapi.com/?s={query}&apikey={OMDB_API_KEY}").json()
         if res.get('Response') == 'True':
@@ -82,26 +78,29 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = movie.get('Title')
         imdb_id = movie.get('imdbID')
         
-        # --- DIRECT STREAMING LOGIC ---
-        direct_stream = f"https://vidsrc.me/embed/movie?imdb={imdb_id}"
-        
+        # --- PLAYER LINKS ---
+        eng_stream = f"https://vidsrc.me/embed/movie?imdb={imdb_id}"
         c_sub = scrape_link("https://cinesubz.co/", title)
         b_sub = scrape_link("https://www.baiscope.lk/", title)
-        yts = f"https://yts.mx/browse-movies/{title.replace(' ', '%20')}/all/all/0/latest/0/all"
 
         keyboard = [
-            [InlineKeyboardButton("📺 Watch Online (In-App Player)", url=direct_stream)],
-            [InlineKeyboardButton("🚀 Fast Download Link", url=f"https://fmovies.to/search?keyword={title.replace(' ', '+')}")],
-            [InlineKeyboardButton("📥 Torrent File", url=yts)]
+            [InlineKeyboardButton("📺 Watch Online (English Player)", url=eng_stream)]
         ]
         
-        if c_sub: keyboard.append([InlineKeyboardButton("🇱🇰 Cinesubz (Sinhala Sub)", url=c_sub)])
-        if b_sub: keyboard.append([InlineKeyboardButton("🇱🇰 Baiscope (Sinhala Sub)", url=b_sub)])
+        # Cinesubz ලින්ක් එක තිබේ නම් එය 'Sinhala Sub' ලෙස පෙන්වීම
+        if c_sub:
+            keyboard.append([InlineKeyboardButton("🇱🇰 Watch with Sinhala Subtitles", url=c_sub)])
+        
+        if b_sub:
+            keyboard.append([InlineKeyboardButton("📝 Baiscope Sinhala Sub", url=b_sub)])
+
+        keyboard.append([InlineKeyboardButton("📥 Torrent Download (YTS)", url=f"https://yts.mx/browse-movies/{title.replace(' ', '%20')}/all/all/0/latest/0/all")])
 
         text = (
             f"🎬 *{title}* ({movie.get('Year')})\n"
             f"⭐️ IMDb: {movie.get('imdbRating')} | ⏳ {movie.get('Runtime')}\n\n"
-            f"📝 *Plot:* {movie.get('Plot')[:250]}..."
+            f"🍿 **දැන් ඔබට Telegram එක ඇතුළෙම නැරඹිය හැක.**\n"
+            f"සිංහල සබ්ටයිටල් අවශ්‍ය නම් අදාළ බටන් එක ක්ලික් කරන්න."
         )
         
         await query.message.reply_photo(
@@ -116,5 +115,5 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
-    print("✅ Flixel v5.0 (No Database) is Online!")
+    print("✅ Flixel v5.0 Ultimate is Live!")
     app.run_polling()
