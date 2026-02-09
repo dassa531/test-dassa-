@@ -9,65 +9,45 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- CONFIG ---
 TOKEN = os.getenv('TOKEN')
 OMDB_API_KEY = os.getenv('OMDB_API_KEY')
-ADMIN_ID = 5440625394  # දසුන්ගේ ID එක
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- SCRAPER & API FUNCTIONS ---
-def scrape_link(url, search_query):
+# --- ADVANCED SCRAPER FOR CINESUBZ ---
+def get_cinesubz_player(movie_title):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(f"{url}?s={search_query.replace(' ', '+')}", headers=headers, timeout=5)
+        search_url = f"https://cinesubz.co/?s={movie_title.replace(' ', '+')}"
+        response = requests.get(search_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # පළමු සෙවුම් ප්‍රතිඵලය ලබා ගැනීම
         result = soup.find('h2') or soup.find('h3')
-        return result.find('a')['href'] if result and result.find('a') else None
-    except: return None
-
-def get_direct_video(url):
-    ydl_opts = {'quiet': True, 'no_warnings': True, 'format': 'best'}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        return {'title': info.get('title'), 'url': info.get('url')}
+        if result and result.find('a'):
+            movie_page_url = result.find('a')['href']
+            
+            # මූවී පේජ් එකට ගිහින් Embed Player එක සෙවීම
+            page_res = requests.get(movie_page_url, headers=headers, timeout=10)
+            page_soup = BeautifulSoup(page_res.text, 'html.parser')
+            
+            # මෙහිදී සයිට් එකේ ඇති Player Iframe එක හෝ Link එක සොයයි
+            # සටහන: බොහෝ විට මෙය Direct ලින්ක් එකක් ලෙස ලබා දිය හැක
+            return movie_page_url # දැනට සයිට් එකේ පේජ් එක ලබා දෙයි
+    except:
+        return None
+    return None
 
 # --- BOT HANDLERS ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"🔥 **Welcome to Flixel AI v5.0** 🔥\n\n"
-        f"Hi {update.effective_user.first_name}, මම ඔබේ දියුණු කළ මූවී සහ වීඩියෝ සහායකයා.\n\n"
-        f"🎬 **Movies:** නම ටයිප් කරන්න\n"
-        f"🎵 **Songs:** 'song [නම]' ලෙස එවන්න\n"
-        f"📽️ **Social Media:** වීඩියෝ ලින්ක් එක එවන්න"
-    )
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
-
-    if "http" in query:
-        st = await update.message.reply_text("🔎 වීඩියෝව පරීක්ෂා කරමින් පවතී...")
-        try:
-            data = get_direct_video(query)
-            keyboard = [[InlineKeyboardButton("📥 Download Video", url=data['url'])]]
-            await st.edit_text(f"📽️ **Found:** {data['title'][:60]}", reply_markup=InlineKeyboardMarkup(keyboard))
-        except: 
-            await st.edit_text("❌ වීඩියෝව සොයාගත නොහැකි විය.")
-
-    elif query.lower().startswith("song "):
-        st = await update.message.reply_text("🎵 සිංදුව සොයමින් පවතී...")
-        try:
-            data = get_direct_video(f"ytsearch1:{query[5:]}")
-            keyboard = [[InlineKeyboardButton("📥 Download MP3", url=data['url'])]]
-            await st.edit_text(f"🎧 **Found:** {data['title']}", reply_markup=InlineKeyboardMarkup(keyboard))
-        except: 
-            await st.edit_text("❌ සිංදුව හමු වුණේ නැහැ.")
-
+    # මූවී සර්ච් එක (OMDb හරහා)
+    res = requests.get(f"http://www.omdbapi.com/?s={query}&apikey={OMDB_API_KEY}").json()
+    
+    if res.get('Response') == 'True':
+        movies = res.get('Search')[:5]
+        keyboard = [[InlineKeyboardButton(f"🎬 {m['Title']} ({m['Year']})", callback_data=m['imdbID'])] for m in movies]
+        await update.message.reply_text("📽️ මා සොයාගත් ප්‍රතිඵල මෙන්න:", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        res = requests.get(f"http://www.omdbapi.com/?s={query}&apikey={OMDB_API_KEY}").json()
-        if res.get('Response') == 'True':
-            movies = res.get('Search')[:5]
-            keyboard = [[InlineKeyboardButton(f"🎬 {m['Title']} ({m['Year']})", callback_data=m['imdbID'])] for m in movies]
-            await update.message.reply_text("📽️ මා සොයාගත් ප්‍රතිඵල මෙන්න:", reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await update.message.reply_text("❌ මූවී එක හමු වුණේ නැහැ.")
+        await update.message.reply_text("❌ මූවී එක හමු වුණේ නැහැ.")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -78,29 +58,27 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = movie.get('Title')
         imdb_id = movie.get('imdbID')
         
-        # --- PLAYER LINKS ---
-        eng_stream = f"https://vidsrc.me/embed/movie?imdb={imdb_id}"
-        c_sub = scrape_link("https://cinesubz.co/", title)
-        b_sub = scrape_link("https://www.baiscope.lk/", title)
+        # English Direct Player (No Subs)
+        eng_player = f"https://vidsrc.me/embed/movie?imdb={imdb_id}"
+        
+        # Sinhala Sub Page (From Scraper)
+        cinesub_link = get_cinesubz_player(title)
 
         keyboard = [
-            [InlineKeyboardButton("📺 Watch Online (English Player)", url=eng_stream)]
+            [InlineKeyboardButton("📺 Watch Online (English - No Ads)", url=eng_player)]
         ]
         
-        # Cinesubz ලින්ක් එක තිබේ නම් එය 'Sinhala Sub' ලෙස පෙන්වීම
-        if c_sub:
-            keyboard.append([InlineKeyboardButton("🇱🇰 Watch with Sinhala Subtitles", url=c_sub)])
+        if cinesub_link:
+            # මේ ලින්ක් එක ටෙලිග්‍රෑම් එක ඇතුළේ 'Instant View' හෝ 'In-App Browser' එකේ ලස්සනට ප්ලේ වෙයි
+            keyboard.append([InlineKeyboardButton("🇱🇰 Watch with Sinhala Subtitles", url=cinesub_link)])
         
-        if b_sub:
-            keyboard.append([InlineKeyboardButton("📝 Baiscope Sinhala Sub", url=b_sub)])
-
-        keyboard.append([InlineKeyboardButton("📥 Torrent Download (YTS)", url=f"https://yts.mx/browse-movies/{title.replace(' ', '%20')}/all/all/0/latest/0/all")])
+        keyboard.append([InlineKeyboardButton("📥 Download Torrent", url=f"https://yts.mx/browse-movies/{title.replace(' ', '%20')}/all/all/0/latest/0/all")])
 
         text = (
             f"🎬 *{title}* ({movie.get('Year')})\n"
-            f"⭐️ IMDb: {movie.get('imdbRating')} | ⏳ {movie.get('Runtime')}\n\n"
-            f"🍿 **දැන් ඔබට Telegram එක ඇතුළෙම නැරඹිය හැක.**\n"
-            f"සිංහල සබ්ටයිටල් අවශ්‍ය නම් අදාළ බටන් එක ක්ලික් කරන්න."
+            f"⭐️ IMDb: {movie.get('imdbRating')}\n\n"
+            f"🍿 **දැන් ඔබට ටෙලිග්‍රෑම් එක ඇතුළෙම නැරඹිය හැක.**\n"
+            f"සිංහල සබ්ටයිටල් අවශ්‍ය නම් දෙවන බටන් එක ක්ලික් කරන්න."
         )
         
         await query.message.reply_photo(
@@ -112,8 +90,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
-    print("✅ Flixel v5.0 Ultimate is Live!")
     app.run_polling()
