@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- CONFIGURATION ---
 TOKEN = os.getenv('TOKEN')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
-GEMINI_API_KEY = os.getenv('AIzaSyAHcqXPB5BpfY87d69XCe0udtsJXh9lKos')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SMART_LINK = "https://otieu.com/4/10513841" # Monetag Smart Link
 
 # Gemini AI Setup
@@ -22,20 +22,22 @@ STRINGS = {
     "si": {
         "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v10.0**\nමම මූවී සොයා දෙන **FLIXEL** නිල බොට්.",
         "ads_disclaimer": "⚠️ **දැනුම්දීමයි:** අපේ සේවාව නොමිලේ දෙන නිසා දැන්වීම් (Ads) භාවිතා කරනවා. 🙏",
-        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න \n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය",
+        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න \n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය\n• `/ai` - AI හරහා සෙවීමට",
         "ad_msg": "⚠️ **Security Check!**\n\nපහත Unlock බටන් එක ක්ලික් කරන්න. තත්පර 6කින් මූවී එක ලැබෙනු ඇත.",
         "unlock": "🔓 Unlock Content",
         "results": "📽️ **සෙවුම් ප්‍රතිඵල (Movies):**",
-        "not_found": "❌ සොයාගත නොහැකි විය. නිවැරදි නම එවන්න."
+        "not_found": "❌ සොයාගත නොහැකි විය. නිවැරදි නම එවන්න.",
+        "ai_limit_msg": "❌ ඔයාගේ නොමිලේ ලැබෙන AI සෙවුම් වාර 5 අවසන්! කරුණාකර සාමාන්‍ය සෙවුම භාවිතා කරන්න."
     },
     "en": {
         "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v10.0**.\nOfficial **FLIXEL** movie bot.",
         "ads_disclaimer": "⚠️ **Note:** We use ads to keep this service free. 🙏",
-        "commands": "🔍 **Commands:**\n• Send Movie Name \n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today",
+        "commands": "🔍 **Commands:**\n• Send Movie Name \n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today\n• `/ai` - AI Search",
         "ad_msg": "⚠️ **Security Check!**\n\nClick Unlock button. Ready in 6 seconds.",
         "unlock": "🔓 Unlock Content",
         "results": "📽️ **Search Results (Movies):**",
-        "not_found": "❌ No results found."
+        "not_found": "❌ No results found.",
+        "ai_limit_msg": "❌ Your 5 free AI searches are over! Please use normal search."
     }
 }
 
@@ -43,7 +45,9 @@ STRINGS = {
 async def search_engine(update, context, query, search_type=None, year=None, actor_name=None, limit=8):
     lang = context.user_data.get(update.effective_user.id, "en")
     
-    # 1. Actor Search Logic (Limit 10 as requested)
+    # Show disclaimer before showing results
+    await update.message.reply_text(STRINGS[lang]["ads_disclaimer"])
+    
     if actor_name:
         act_url = f"https://api.themoviedb.org/3/search/person?api_key={TMDB_API_KEY}&query={actor_name}"
         act_data = requests.get(act_url).json().get('results')
@@ -52,17 +56,11 @@ async def search_engine(update, context, query, search_type=None, year=None, act
         url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_cast={act_id}&sort_by=popularity.desc"
         if year: url += f"&primary_release_year={year}"
         limit = 10
-    
-    # 2. Year Only Logic (Limit 10 as requested)
     elif search_type == "year_only":
         url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&primary_release_year={year}&sort_by=popularity.desc"
         limit = 10
-    
-    # 3. TV Series Search (Strictly for /series command)
     elif search_type == "tv":
         url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={query}"
-    
-    # 4. MAIN FEATURE: Default Movie Search (Strictly Movies, Limit 8)
     else:
         url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={query}"
 
@@ -75,7 +73,6 @@ async def search_engine(update, context, query, search_type=None, year=None, act
                 full_name = m.get('title') or m.get('name')
                 release_date = m.get('release_date') or m.get('first_air_date', 'N/A')
                 year_val = release_date[:4] if release_date != 'N/A' else "N/A"
-                
                 icon = "🎬" if m_type == "movie" else "📺"
                 keyboard.append([InlineKeyboardButton(f"{icon} {full_name} ({year_val})", callback_data=f"sl_{m_type}_{m['id']}")])
             
@@ -85,7 +82,6 @@ async def search_engine(update, context, query, search_type=None, year=None, act
             else:
                 await update.message.reply_text(STRINGS[lang]["not_found"])
         else:
-            # AI Fuzzy Search Logic
             prompt = f"Extract only the correct movie title from this text: '{query}'. Return only the name."
             ai_res = ai_model.generate_content(prompt)
             await update.message.reply_text(f"❌ Not found. Did you mean: **{ai_res.text.strip()}**?")
@@ -96,7 +92,6 @@ async def search_engine(update, context, query, search_type=None, year=None, act
 async def send_media_info(update, context, m_type, tmdb_id, lang, s=None, e=None):
     res = requests.get(f"https://api.themoviedb.org/3/{m_type}/{tmdb_id}?api_key={TMDB_API_KEY}").json()
     poster = f"https://image.tmdb.org/t/p/w500{res.get('poster_path')}" if res.get('poster_path') else "https://via.placeholder.com/500x750"
-    
     caption = (
         f"{'🎬' if m_type == 'movie' else '📺'} **{res.get('title') or res.get('name')}**\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
@@ -106,7 +101,6 @@ async def send_media_info(update, context, m_type, tmdb_id, lang, s=None, e=None
     if s: caption += f"📍 Season {s} | Episode {e}\n"
     caption += f"\n📝 Plot: _{res.get('overview')[:300]}..._\n"
     caption += f"━━━━━━━━━━━━━━━━━━━━━\n⚡ *Powered by filxel AI*"
-
     cb = f"srv_{m_type}_{tmdb_id}"
     if s: cb += f"_{s}_{e}"
     kb = [[InlineKeyboardButton("📺 Watch Online", callback_data=cb)]]
@@ -122,7 +116,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("setlang_"):
         l = data.split("_")[1]
         context.user_data[query.from_user.id] = l
-        await query.edit_message_text(STRINGS[l]["welcome"].format(name=query.from_user.first_name) + "\n\n" + STRINGS[l]["commands"])
+        await query.edit_message_text(STRINGS[l]["welcome"].format(name=query.from_user.first_name) + "\n\n" + STRINGS[l]["ads_disclaimer"] + "\n\n" + STRINGS[l]["commands"])
 
     elif data.startswith("sl_"):
         _, mt, tid = data.split("_")
@@ -169,6 +163,26 @@ async def trending(update, context):
     kb = [[InlineKeyboardButton(f"🔥 {m.get('title')} ({m.get('release_date')[:4]})", callback_data=f"sl_movie_{m['id']}")] for m in res]
     await update.message.reply_text("🔥 **Trending Movies Today**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
+async def ai_search_handler(update, context):
+    user_id = update.effective_user.id
+    lang = context.user_data.get(user_id, "en")
+    
+    # AI Limit Logic
+    usage_count = context.user_data.get(f"ai_usage_{user_id}", 0)
+    if usage_count >= 5:
+        return await update.message.reply_text(STRINGS[lang]["ai_limit_msg"])
+    
+    if not context.args: 
+        return await update.message.reply_text("💡 Usage: `/ai space movies with robots`")
+    
+    # Increment count
+    context.user_data[f"ai_usage_{user_id}"] = usage_count + 1
+    
+    query = " ".join(context.args)
+    prompt = f"Extract only the movie name from: '{query}'. Return only the name."
+    ai_res = ai_model.generate_content(prompt)
+    await search_engine(update, context, ai_res.text.strip())
+
 if __name__ == '__main__':
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Select Language:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇱🇰 සිංහල", callback_data="setlang_si"), InlineKeyboardButton("🇺🇸 English", callback_data="setlang_en")]]))))
@@ -177,9 +191,9 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("year", lambda u, c: search_engine(u, c, None, search_type="year_only", year=c.args[0], limit=10) if c.args else None))
     app.add_handler(CommandHandler("find", lambda u, c: search_engine(u, c, None, year=c.args[-1], actor_name=" ".join(c.args[:-1]), limit=10) if len(c.args) >= 2 else None))
     app.add_handler(CommandHandler("trending", trending))
-    app.add_handler(CommandHandler("ai", lambda u, c: search_engine(u, c, ai_model.generate_content(f"Extract only movie name from: {' '.join(c.args)}").text.strip()) if c.args else None))
+    app.add_handler(CommandHandler("ai", ai_search_handler))
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: search_engine(u, c, u.message.text, limit=8)))
     
-    print("🚀 filxel AI v10.0 - Movies Priority Edition Live!")
+    print("🚀 filxel AI v10.0 - Final Edition Live!")
     app.run_polling()
