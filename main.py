@@ -9,7 +9,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # --- CONFIGURATION ---
 TOKEN = os.getenv('TOKEN')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_API_KEY = os.getenv('AIzaSyAHcqXPB5BpfY87d69XCe0udtsJXh9lKos')
 SMART_LINK = "https://otieu.com/4/10513841" # Monetag Smart Link
 
 # Gemini AI Setup
@@ -90,7 +90,7 @@ async def search_engine(update, context, query, search_type=None, year=None, act
             ai_res = ai_model.generate_content(prompt)
             await update.message.reply_text(f"❌ Not found. Did you mean: **{ai_res.text.strip()}**?")
     except:
-        await update.message.reply_text("⚠️ API Error. Try again later.")
+        await update.message.reply_text(" ❌ No results found.")
 
 # --- CONTENT DISPLAY (POSTER VIEW) ---
 async def send_media_info(update, context, m_type, tmdb_id, lang, s=None, e=None):
