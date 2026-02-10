@@ -1,7 +1,5 @@
-python-telegram-bot==20.8
+python-telegram-bot
 requests
-python-telegram-bot==21.10
-asyncio
-
+google-generativeai
 
 
