@@ -1,6 +1,6 @@
 python-telegram-bot==20.8
 requests
-google-generativeai==0.8.3
+python-telegram-bot==21.10
 asyncio
 
 
