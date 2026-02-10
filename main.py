@@ -20,19 +20,19 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 
 STRINGS = {
     "si": {
-        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v95.0**\nමම මූවී සහ TV Series සොයා දෙන **filxel** නිල බොට්.",
-        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• නම එවන්න - Movies 8ක් (Full Name + Year)\n• `/series` [නම] - Series විතරක්\n• `/actor` [නම] - නළුවාගේ මූවීස් 10ක්\n• `/year` [වසර] - එම වසරේ මූවීස් 10ක්\n• `/find` [නම] [වසර] - නළුවා සහ වසර අනුව\n• `/trending` - අද ජනප්‍රිය\n• `/ai` - AI සෙවුම",
-        "ad_msg": "⚠️ **Security Check!**\n\nපහත Unlock බටන් එක ක්ලික් කරන්න. තත්පර 6කින් අන්තර්ගතය විවෘත වේවි.",
-        "unlock": "🔓 Unlock Content (Auto Release)",
-        "results": "📽️ **සෙවුම් ප්‍රතිඵල:**",
-        "not_found": "❌ සොයාගත නොහැකි විය. කරුණාකර නිවැරදි නම එවන්න."
+        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v100.0**\nමම මූවී සොයා දෙන **filxel** නිල බොට්.",
+        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න - Movies 8ක්\n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය",
+        "ad_msg": "⚠️ **Security Check!**\n\nපහත Unlock බටන් එක ක්ලික් කරන්න. තත්පර 6කින් මූවී එක ලැබෙනු ඇත.",
+        "unlock": "🔓 Unlock Content",
+        "results": "📽️ **සෙවුම් ප්‍රතිඵල (Movies):**",
+        "not_found": "❌ සොයාගත නොහැකි විය. නිවැරදි නම එවන්න."
     },
     "en": {
-        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v95.0**.\nOfficial **filxel** movie & series bot.",
-        "commands": "🔍 **Commands:**\n• Name - 8 Results\n• `/series` - TV Only\n• `/actor` - Actor's 10 Movies\n• `/year` - Year's 10 Movies\n• `/find` [Actor] [Year] - Actor + Year Search\n• `/ai` - AI Search",
-        "ad_msg": "⚠️ **Security Check!**\n\nClick Unlock. Ready in 6 seconds.",
-        "unlock": "🔓 Unlock Content (Auto Release)",
-        "results": "📽️ **Search Results:**",
+        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v100.0**.\nOfficial **filxel** movie bot.",
+        "commands": "🔍 **Commands:**\n• Send Movie Name - Get 8 Movies\n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today",
+        "ad_msg": "⚠️ **Security Check!**\n\nClick Unlock button. Ready in 6 seconds.",
+        "unlock": "🔓 Unlock Content",
+        "results": "📽️ **Search Results (Movies):**",
         "not_found": "❌ No results found."
     }
 }
@@ -41,33 +41,35 @@ STRINGS = {
 async def search_engine(update, context, query, search_type=None, year=None, actor_name=None, limit=8):
     lang = context.user_data.get(update.effective_user.id, "en")
     
-    # 1. Logic for Actor or Find (Actor + Year)
+    # 1. Actor Search Logic (Limit 10 as requested)
     if actor_name:
         act_url = f"https://api.themoviedb.org/3/search/person?api_key={TMDB_API_KEY}&query={actor_name}"
-        act_res = requests.get(act_url).json().get('results')
-        if not act_res: return await update.message.reply_text(STRINGS[lang]["not_found"])
-        
-        act_id = act_res[0]['id']
+        act_data = requests.get(act_url).json().get('results')
+        if not act_data: return await update.message.reply_text(STRINGS[lang]["not_found"])
+        act_id = act_data[0]['id']
         url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_cast={act_id}&sort_by=popularity.desc"
         if year: url += f"&primary_release_year={year}"
+        limit = 10
     
-    # 2. Logic for Year Only
+    # 2. Year Only Logic (Limit 10 as requested)
     elif search_type == "year_only":
         url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&primary_release_year={year}&sort_by=popularity.desc"
+        limit = 10
     
-    # 3. Logic for Series or Multi Search
+    # 3. TV Series Search (Strictly for /series command)
+    elif search_type == "tv":
+        url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={query}"
+    
+    # 4. MAIN FEATURE: Default Movie Search (Strictly Movies, Limit 8)
     else:
-        endpoint = "tv" if search_type == "tv" else "multi"
-        url = f"https://api.themoviedb.org/3/search/{endpoint}?api_key={TMDB_API_KEY}&query={query}"
+        url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={query}"
 
     try:
         data = requests.get(url).json().get('results', [])
         if data:
             keyboard = []
             for m in data[:limit]:
-                m_type = m.get('media_type', 'movie' if not search_type == "tv" else "tv")
-                if m_type == "person": continue
-                
+                m_type = "tv" if search_type == "tv" else "movie"
                 full_name = m.get('title') or m.get('name')
                 release_date = m.get('release_date') or m.get('first_air_date', 'N/A')
                 year_val = release_date[:4] if release_date != 'N/A' else "N/A"
@@ -76,12 +78,13 @@ async def search_engine(update, context, query, search_type=None, year=None, act
                 keyboard.append([InlineKeyboardButton(f"{icon} {full_name} ({year_val})", callback_data=f"sl_{m_type}_{m['id']}")])
             
             if keyboard:
-                await update.message.reply_text(STRINGS[lang]["results"], reply_markup=InlineKeyboardMarkup(keyboard))
+                msg_text = STRINGS[lang]["results"] if search_type != "tv" else "📽️ **TV Series Results:**"
+                await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard))
             else:
                 await update.message.reply_text(STRINGS[lang]["not_found"])
         else:
-            # Fuzzy Logic via AI
-            prompt = f"Identify the correct movie/show title for: '{query}'. Return only the name."
+            # AI Fuzzy Search Logic
+            prompt = f"Extract only the correct movie title from this text: '{query}'. Return only the name."
             ai_res = ai_model.generate_content(prompt)
             await update.message.reply_text(f"❌ Not found. Did you mean: **{ai_res.text.strip()}**?")
     except:
@@ -104,7 +107,6 @@ async def send_media_info(update, context, m_type, tmdb_id, lang, s=None, e=None
 
     cb = f"srv_{m_type}_{tmdb_id}"
     if s: cb += f"_{s}_{e}"
-    
     kb = [[InlineKeyboardButton("📺 Watch Online", callback_data=cb)]]
     await context.bot.send_photo(update.effective_chat.id, poster, caption=caption, reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
@@ -125,9 +127,9 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if mt == 'tv':
             res = requests.get(f"https://api.themoviedb.org/3/tv/{tid}?api_key={TMDB_API_KEY}").json()
             kb = [[InlineKeyboardButton(f"📅 Season {s['season_number']}", callback_data=f"ep_{tid}_{s['season_number']}")] for s in res.get('seasons', []) if s['season_number'] > 0]
-            await query.message.reply_text(STRINGS[lang]["results"], reply_markup=InlineKeyboardMarkup(kb))
+            await query.message.reply_text("📅 Select Season:", reply_markup=InlineKeyboardMarkup(kb))
         else:
-            msg = await query.message.reply_text(STRINGS[lang]["ad_msg"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔓 Unlock", url=SMART_LINK)]]))
+            msg = await query.message.reply_text(STRINGS[lang]["ad_msg"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(STRINGS[lang]["unlock"], url=SMART_LINK)]]))
             await asyncio.sleep(6); await msg.delete()
             await send_media_info(update, context, 'movie', tid, lang)
 
@@ -143,7 +145,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("unl_"):
         _, tid, s, e = data.split("_")
-        msg = await query.message.reply_text(STRINGS[lang]["ad_msg"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔓 Unlock", url=SMART_LINK)]]))
+        msg = await query.message.reply_text(STRINGS[lang]["ad_msg"], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(STRINGS[lang]["unlock"], url=SMART_LINK)]]))
         await asyncio.sleep(6); await msg.delete()
         await send_media_info(update, context, 'tv', tid, lang, s, e)
 
@@ -159,17 +161,11 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("📽️ Select Server:", reply_markup=InlineKeyboardMarkup(srvs))
 
 # --- COMMAND HANDLERS ---
-async def find_cmd(update, context):
-    if len(context.args) < 2: return await update.message.reply_text("💡 Usage: `/find Vijay 2021`")
-    year = context.args[-1]
-    actor = " ".join(context.args[:-1])
-    await search_engine(update, context, None, year=year, actor_name=actor, limit=10)
-
 async def trending(update, context):
-    url = f"https://api.themoviedb.org/3/trending/all/day?api_key={TMDB_API_KEY}"
+    url = f"https://api.themoviedb.org/3/trending/movie/day?api_key={TMDB_API_KEY}"
     res = requests.get(url).json().get('results', [])[:8]
-    kb = [[InlineKeyboardButton(f"🔥 {m.get('title', m.get('name'))} ({(m.get('release_date') or m.get('first_air_date', ''))[:4]})", callback_data=f"sl_{m.get('media_type')}_{m['id']}")] for m in res]
-    await update.message.reply_text("🔥 **Trending Today**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
+    kb = [[InlineKeyboardButton(f"🔥 {m.get('title')} ({m.get('release_date')[:4]})", callback_data=f"sl_movie_{m['id']}")] for m in res]
+    await update.message.reply_text("🔥 **Trending Movies Today**", reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
 if __name__ == '__main__':
     app = Application.builder().token(TOKEN).build()
@@ -177,11 +173,11 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("series", lambda u, c: search_engine(u, c, " ".join(c.args), "tv") if c.args else None))
     app.add_handler(CommandHandler("actor", lambda u, c: search_engine(u, c, None, actor_name=" ".join(c.args), limit=10) if c.args else None))
     app.add_handler(CommandHandler("year", lambda u, c: search_engine(u, c, None, search_type="year_only", year=c.args[0], limit=10) if c.args else None))
-    app.add_handler(CommandHandler("find", find_cmd))
+    app.add_handler(CommandHandler("find", lambda u, c: search_engine(u, c, None, year=c.args[-1], actor_name=" ".join(c.args[:-1]), limit=10) if len(c.args) >= 2 else None))
     app.add_handler(CommandHandler("trending", trending))
     app.add_handler(CommandHandler("ai", lambda u, c: search_engine(u, c, ai_model.generate_content(f"Extract only movie name from: {' '.join(c.args)}").text.strip()) if c.args else None))
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: search_engine(u, c, u.message.text, limit=8)))
     
-    print("🚀 filxel AI v95.0 Final Mega Update Live!")
+    print("🚀 filxel AI v100.0 - Movies Priority Edition Live!")
     app.run_polling()
