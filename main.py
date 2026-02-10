@@ -192,6 +192,7 @@ async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(STRINGS[lang]["not_found"])
 
 if __name__ == '__main__':
+    # මෙතන builder() එකට පස්සේ build() එක තියෙනවා නේද කියලා බලන්න
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("trending", trending))
