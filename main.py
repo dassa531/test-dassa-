@@ -3,131 +3,141 @@ import logging
 import requests
 import datetime
 import google.generativeai as genai
+from bs4 import BeautifulSoup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-from deep_translator import GoogleTranslator
 
 # --- CONFIGURATION ---
 TOKEN = os.getenv('TOKEN')
 OMDB_API_KEY = os.getenv('OMDB_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-# Gemini 2.0 Flash Setup
 genai.configure(api_key=GEMINI_API_KEY)
 ai_model = genai.GenerativeModel('gemini-2.0-flash')
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Trackers
-ai_usage_tracker = {}
-GENRES = ["Action", "Comedy", "Horror", "Sci-Fi", "Drama", "Animation", "Romance"]
+# භාෂාව අනුව මැසේජ් පද්ධතිය
+STRINGS = {
+    "si": {
+        "welcome": "🚀 **Flixel AI v26.0**\n\nමම ඔයාට ඕනෑම මූවී එකක් සොයා දෙන බොට් කෙනෙක්.\n\n🔍 **සෙවුම් විධානයන්:**\n• නම එවන්න (Movie Search)\n• නළුවා අනුව: `/actor [නම]`\n• වසර අනුව: `/year [වසර]`\n• AI සෙවුම: `/ai [විස්තරය]`",
+        "desc_title": "📝 **කතාව:**",
+        "select_option": "✅ පහතින් තෝරාගන්න:",
+        "watch": "📺 ඔන්ලයින් බලන්න",
+        "download": "📥 ඩවුන්ලෝඩ්",
+        "sub": "🇱🇰 සිංහල උපසිරැසි",
+        "results": "📽️ සෙවුම් ප්‍රතිඵල:",
+        "not_found": "❌ කිසිවක් සොයාගත නොහැකි විය."
+    },
+    "en": {
+        "welcome": "🚀 **Flixel AI v26.0**\n\nI am a bot that helps you find any movie.\n\n🔍 **Search Commands:**\n• Send Name (Movie Search)\n• By Actor: `/actor [name]`\n• By Year: `/year [year]`\n• AI Search: `/ai [description]`",
+        "desc_title": "📝 **Description:**",
+        "select_option": "✅ Select an option below:",
+        "watch": "📺 Watch Online",
+        "download": "📥 Download",
+        "sub": "🇱🇰 Sinhala Subtitle",
+        "results": "📽️ Search Results:",
+        "not_found": "❌ No results found."
+    }
+}
 
-def to_english(text):
-    try: return GoogleTranslator(source='auto', target='en').translate(text)
-    except: return text
+# --- HELPER FUNCTIONS ---
+def get_lang(context, user_id):
+    return context.user_data.get(user_id, "en")
 
-# --- 1. START COMMAND ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        f"🚀 **Flixel AI v16.0**\n\n"
-        f"Hi {update.effective_user.first_name}, මම ඔයාට ඕනෑම මූවී එකක් සොයා දෙන බොට් කෙනෙක්.\n\n"
-        f"🔍 **සෙවීමට:** මූවී නම ටයිප් කර එවන්න.\n"
-        f"🧠 **AI සෙවුම:** `/ai [දර්ශනය]`\n\n"
-        f"📢 **භාෂාව තෝරාගන්න / Select Language:**"
-    )
-    keyboard = [[InlineKeyboardButton("🇱🇰 Sinhala", callback_data="lang_si"),
-                 InlineKeyboardButton("🇺🇸 English", callback_data="lang_en")]]
-    await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-# --- 2. MAIN MENU ---
-async def show_main_menu(update_or_query, context):
-    keyboard = [[InlineKeyboardButton("🔥 Trending", callback_data="trending")],
-                [InlineKeyboardButton("🎭 Genre", callback_data="show_genres")]]
-    text = "🚀 **Flixel AI Menu**\nමූවී නම ටයිප් කරන්න හෝ පහතින් තෝරන්න:"
-    if isinstance(update_or_query, Update):
-        await update_or_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await update_or_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-# --- 3. AI SEARCH (Gemini 2.0 Flash) ---
-async def ai_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    today = str(datetime.date.today())
-    if user_id not in ai_usage_tracker or ai_usage_tracker[user_id]['date'] != today:
-        ai_usage_tracker[user_id] = {'count': 0, 'date': today}
-
-    if ai_usage_tracker[user_id]['count'] >= 5:
-        await update.message.reply_text("❌ අද දිනට AI සීමාව අවසන්.")
-        return
-
-    if not context.args:
-        await update.message.reply_text("🎬 උදා: `/ai ship hitting iceberg`")
-        return
-
-    status = await update.message.reply_text("🧠 Gemini 2.0 Flash පරීක්ෂා කරයි...")
+def has_sinhala_sub(movie_name):
     try:
-        query = to_english(' '.join(context.args))
-        response = ai_model.generate_content(f"Movie name for: {query}. Return ONLY the title.")
-        movie_name = response.text.strip()
-        ai_usage_tracker[user_id]['count'] += 1
-        await status.edit_text(f"💡 චිත්‍රපටය: **{movie_name}**")
-        await perform_search(update, movie_name, "📽️ ප්‍රතිඵල මෙන්න:")
-    except:
-        await status.edit_text("❌ AI එකට සොයාගත නොහැකි විය.")
+        search_url = f"https://subscene.com/subtitles/searchbytitle?query={movie_name.replace(' ', '+')}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(search_url, headers=headers, timeout=5)
+        return "Sinhala" in response.text or "sinhala" in response.text
+    except: return False
 
-# --- 4. SEARCH LOGIC ---
-async def perform_search(update_or_query, query, success_text):
-    search_term = to_english(query)
-    url = f"http://www.omdbapi.com/?s={search_term.replace(' ', '+')}&apikey={OMDB_API_KEY}"
-    res = requests.get(url).json()
+def get_yts_links(movie_title):
+    try:
+        yts_url = f"https://yts.mx/api/v2/list_movies.json?query_term={movie_title}"
+        data = requests.get(yts_url).json()
+        if data['data']['movie_count'] > 0:
+            movie = data['data']['movies'][0]
+            return movie.get('torrents', [])
+        return []
+    except: return []
 
-    if res.get('Response') == 'True':
-        movies = res.get('Search')[:8]
-        keyboard = [[InlineKeyboardButton(f"🎬 {m['Title']} ({m['Year']})", callback_data=f"select_{m['imdbID']}")] for m in movies]
-        if isinstance(update_or_query, Update):
-            await update_or_query.message.reply_text(success_text, reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await update_or_query.message.reply_text(success_text, reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        if isinstance(update_or_query, Update): await update_or_query.message.reply_text("❌ සොයාගත නොහැකි විය.")
+# --- HANDLERS ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton("🇱🇰 සිංහල", callback_data="setlang_si"),
+                 InlineKeyboardButton("🇺🇸 English", callback_data="setlang_en")]]
+    await update.message.reply_text("👋 Hello! Please select your language / කරුණාකර භාෂාව තෝරාගන්න:", 
+                                  reply_markup=InlineKeyboardMarkup(keyboard))
 
-# --- 5. BUTTON HANDLER (Subtitle Fix) ---
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
     data = query.data
     await query.answer()
 
-    if data.startswith("lang_"): await show_main_menu(query, context)
-    elif data == "trending": await perform_search(query, "2026", "🔥 Trending:")
-    elif data == "show_genres":
-        keyboard = [[InlineKeyboardButton(g, callback_data=f"genre_{g.lower()}")] for g in GENRES]
-        await query.edit_message_text("🎭 තෝරන්න:", reply_markup=InlineKeyboardMarkup(keyboard))
-    elif data.startswith("genre_"): await perform_search(query, data.split("_")[1], "🎬 ප්‍රතිඵල:")
+    if data.startswith("setlang_"):
+        lang = data.split("_")[1]
+        context.user_data[user_id] = lang
+        s = STRINGS[lang]
+        await query.edit_message_text(s["welcome"], parse_mode='Markdown')
 
     elif data.startswith("select_"):
+        lang = get_lang(context, user_id)
+        s = STRINGS[lang]
         imdb_id = data.split("_")[1]
-        m = requests.get(f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}").json()
-        title = m.get('Title')
         
-        # සැබෑ උපසිරැසි ලින්ක් සකස් කිරීම
-        sub_search_url = f"https://www.opensubtitles.org/en/search/sublanguageid-all/idmovie-{imdb_id.replace('tt','')}"
-        sin_sub_url = f"https://subscene.com/subtitles/searchbytitle?query={title.replace(' ', '%20')}"
+        # Get Full Details from OMDB (plot='full')
+        m = requests.get(f"http://www.omdbapi.com/?i={imdb_id}&plot=full&apikey={OMDB_API_KEY}").json()
+        title = m.get('Title')
+        plot = m.get('Plot', 'N/A')
+        
+        yts_torrents = get_yts_links(title)
+        show_sub = has_sinhala_sub(title)
+        
+        keyboard = [[InlineKeyboardButton(s["watch"], url=f"https://vidsrc.me/embed/movie?imdb={imdb_id}")]]
+        
+        if yts_torrents:
+            for t in yts_torrents:
+                btn_label = f"{s['download']} {t['quality']} ({t['size']})"
+                keyboard.append([InlineKeyboardButton(btn_label, url=t['url'])])
+        
+        if show_sub:
+            sub_url = f"https://subscene.com/subtitles/searchbytitle?query={title.replace(' ', '+')}"
+            keyboard.append([InlineKeyboardButton(s["sub"], url=sub_url)])
+        
+        # Caption with Description
+        caption = (
+            f"🎬 *{title}* ({m.get('Year')})\n"
+            f"⭐ IMDb: {m.get('imdbRating')} | 🕒 {m.get('Runtime')}\n"
+            f"🎭 Cast: {m.get('Actors')}\n\n"
+            f"{s['desc_title']}\n{plot[:500]}...\n\n"
+            f"{s['select_option']}"
+        )
+        await query.message.reply_photo(photo=m.get('Poster'), caption=caption, 
+                                      reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-        text = f"🎬 *{title}* ({m.get('Year')})\n⭐ IMDb: {m.get('imdbRating')}\n\n✅ තෝරාගන්න:"
-        keyboard = [
-            [InlineKeyboardButton("📺 Watch Online", url=f"https://vidsrc.me/embed/movie?imdb={imdb_id}")],
-            [InlineKeyboardButton("📥 Download Movie", url=f"https://yts.mx/browse-movies/{title.replace(' ', '%20')}")],
-            [InlineKeyboardButton("🇱🇰 Sinhala Subtitles", url=sin_sub_url)],
-            [InlineKeyboardButton("🌍 Global Subtitles", url=sub_search_url)]
-        ]
-        await query.message.reply_photo(photo=m.get('Poster'), caption=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    lang = get_lang(context, user_id)
+    s = STRINGS[lang]
+    user_input = update.message.text
+    
+    url = f"http://www.omdbapi.com/?s={user_input.replace(' ', '+')}&apikey={OMDB_API_KEY}"
+    res = requests.get(url).json()
+    
+    if res.get('Response') == 'True':
+        movies = res.get('Search')[:8]
+        keyboard = [[InlineKeyboardButton(f"🎬 {m['Title']} ({m['Year']})", callback_data=f"select_{m['imdbID']}")] for m in movies]
+        await update.message.reply_text(f"{s['results']}", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(s["not_found"])
 
-# --- 6. MAIN ---
+# --- MAIN ---
 if __name__ == '__main__':
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ai", ai_search))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: perform_search(u, u.message.text, "📽️ සෙවුම් ප්‍රතිඵල:")))
     app.add_handler(CallbackQueryHandler(button_click))
-    print("🚀 Flixel AI v16.0 Live!")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search))
+    print("🚀 Flixel AI v26.0 Live!")
     app.run_polling()
