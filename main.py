@@ -21,23 +21,27 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 
 STRINGS = {
     "si": {
-        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **Flixel AI v42.0** වෙත සාදරයෙන් පිළිගනිමු.\nමම මූවී සොයා දෙන **filxel** [2026-02-08] නිල බොට්.",
+        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **Flixel AI v50.0** වෙත සාදරයෙන් පිළිගනිමු.\nමම මූවී සොයා දෙන **filxel** [2026-02-08] නිල බොට්.",
         "ads_disclaimer": "⚠️ **දැනුම්දීමයි:** අපේ සේවාව නොමිලේ දෙන නිසා දැන්වීම් (Ads) භාවිතා කරනවා. 🙏",
         "commands": "🔍 **සෙවුම් ක්‍රම:**\n• නම එවන්න - මූවී සෙවීමට\n• `/series [නම]` - ටීවී සීරීස්\n• `/actor [නම]` - නළුවා අනුව\n• `/year [වසර]` - වසර අනුව\n• `/ai` - AI සෙවුම",
         "ad_msg": "⚠️ **Security Check!**\n\nපහත බටන් එක ක්ලික් කර ඇඩ් එක බලන අතරතුර අපි ඔබේ මූවී එක සූදානම් කරනවා. තත්පර 6කින් මෙය Unlock වේවි.",
-        "unlock": "🔓 Unlock Content (Auto Release)",
-        "watch": "📺 ඔන්ලයින් බලන්න",
+        "unlock": "🔓 Unlock Content (Multi-Server)",
+        "watch_1": "📺 Server 1 (vidsrc.me)",
+        "watch_2": "📺 Server 2 (vidsrc.xyz)",
+        "watch_3": "📺 Server 3 (MultiEmbed)",
         "results": "📽️ සෙවුම් ප්‍රතිඵල:",
         "genres_msg": "🎭 කැමති මූවී වර්ගයක් තෝරන්න:",
         "not_found": "❌ සොයාගත නොහැකි විය. කරුණාකර නිවැරදි නම එවන්න."
     },
     "en": {
-        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **Flixel AI v42.0**.\nOfficial **filxel** [2026-02-08] movie bot.",
+        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **Flixel AI v50.0**.\nOfficial **filxel** [2026-02-08] movie bot.",
         "ads_disclaimer": "⚠️ **Note:** We use ads to keep this service free. 🙏",
         "commands": "🔍 **Search Commands:**\n• Send name - Search Movies\n• `/series [name]` - TV Series\n• `/actor [name]` - By Actor\n• `/year [year]` - By Year\n• `/ai` - AI Search",
         "ad_msg": "⚠️ **Security Check!**\n\nClick below. Your movie will be automatically displayed in 6 seconds.",
-        "unlock": "🔓 Unlock Content (Auto Release)",
-        "watch": "📺 Watch Online",
+        "unlock": "🔓 Unlock Content (Multi-Server)",
+        "watch_1": "📺 Watch (Server 1)",
+        "watch_2": "📺 Watch (Server 2)",
+        "watch_3": "📺 Watch (Server 3)",
         "results": "📽️ Search Results:",
         "genres_msg": "🎭 Select a Movie Category:",
         "not_found": "❌ No results found. Check spelling."
@@ -72,8 +76,8 @@ async def search_engine(update, context, query, search_type=None, year=None):
             keyboard.append([InlineKeyboardButton(f"{icon} {m['Title']} ({m['Year']})", callback_data=f"select_{m['imdbID']}")])
         await update.message.reply_text(STRINGS[lang]["results"], reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        # If not found, try AI suggestion
-        prompt = f"The user searched for '{query}' but no results. Suggest the most famous real movie title only."
+        # Fuzzy search logic using Gemini
+        prompt = f"The user searched for '{query}' but no results were found. Correct the spelling or suggest the most likely real movie title only."
         ai_res = ai_model.generate_content(prompt)
         await update.message.reply_text(f"❌ Not found. Did you mean: **{ai_res.text.strip()}**?")
 
@@ -85,6 +89,7 @@ async def send_movie(update, context, data, lang):
     
     m = requests.get(f"http://www.omdbapi.com/?i={imdb_id}&plot=full&apikey={OMDB_API_KEY}").json()
     title = m.get('Title', 'N/A')
+    m_type = m.get('Type', 'movie')
     
     caption = (
         f"✅ **Unlocked Successfully!**\n\n"
@@ -97,8 +102,14 @@ async def send_movie(update, context, data, lang):
         f"⚡ *Powered by filxel AI*"
     )
     
-    keyboard = [[InlineKeyboardButton(s["watch"], url=f"https://vidsrc.me/embed/{'movie' if m['Type']=='movie' else 'tv'}?imdb={imdb_id}")]]
-    if m['Type'] == 'movie':
+    # Multi-Server Buttons
+    keyboard = [
+        [InlineKeyboardButton(s["watch_1"], url=f"https://vidsrc.me/embed/{m_type}?imdb={imdb_id}")],
+        [InlineKeyboardButton(s["watch_2"], url=f"https://vidsrc.xyz/embed/{m_type}?imdb={imdb_id}")],
+        [InlineKeyboardButton(s["watch_3"], url=f"https://multiembed.mov/directstream.php?video_id={imdb_id}")]
+    ]
+    
+    if m_type == 'movie':
         for t in get_yts(title):
             keyboard.append([InlineKeyboardButton(f"📥 {t['quality']} ({t['size']})", url=t['url'])])
             
@@ -129,7 +140,7 @@ async def year_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ai_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args: return await update.message.reply_text("💡 Usage: `/ai robot movie 2024`")
     desc = " ".join(context.args)
-    prompt = f"Identify movie/series name from: {desc}. Return ONLY the name."
+    prompt = f"Identify movie/series name from description: {desc}. Return ONLY the movie name."
     try:
         response = ai_model.generate_content(prompt)
         movie_name = response.text.strip()
@@ -173,7 +184,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("select_"):
         keyboard = [[InlineKeyboardButton(STRINGS[lang]["unlock"], url=SMART_LINK)]]
         msg = await query.message.reply_text(STRINGS[lang]["ad_msg"], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        await asyncio.sleep(6) # Ad view time
+        await asyncio.sleep(6) # Ad wait
         await msg.edit_text("⏳ Unlocking Content...")
         await asyncio.sleep(1)
         await send_movie(update, context, data, lang)
@@ -191,5 +202,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_movie_search))
     
-    print("🚀 Flixel AI v42.0 Live & Stable!")
+    print("🚀 Flixel AI v50.0 Live & Stable! Millionaire Ready!")
     app.run_polling(drop_pending_updates=True)
