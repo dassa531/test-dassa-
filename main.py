@@ -20,18 +20,18 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 
 STRINGS = {
     "si": {
-        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v100.0**\nමම මූවී සොයා දෙන **filxel** නිල බොට්.",
+        "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v10.0**\nමම මූවී සොයා දෙන **FLIXEL** නිල බොට්.",
         "ads_disclaimer": "⚠️ **දැනුම්දීමයි:** අපේ සේවාව නොමිලේ දෙන නිසා දැන්වීම් (Ads) භාවිතා කරනවා. 🙏",
-        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න - Movies 8ක්\n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය",
+        "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න \n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය",
         "ad_msg": "⚠️ **Security Check!**\n\nපහත Unlock බටන් එක ක්ලික් කරන්න. තත්පර 6කින් මූවී එක ලැබෙනු ඇත.",
         "unlock": "🔓 Unlock Content",
         "results": "📽️ **සෙවුම් ප්‍රතිඵල (Movies):**",
         "not_found": "❌ සොයාගත නොහැකි විය. නිවැරදි නම එවන්න."
     },
     "en": {
-        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v100.0**.\nOfficial **filxel** movie bot.",
+        "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v10.0**.\nOfficial **FLIXEL** movie bot.",
         "ads_disclaimer": "⚠️ **Note:** We use ads to keep this service free. 🙏",
-        "commands": "🔍 **Commands:**\n• Send Movie Name - Get 8 Movies\n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today",
+        "commands": "🔍 **Commands:**\n• Send Movie Name \n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today",
         "ad_msg": "⚠️ **Security Check!**\n\nClick Unlock button. Ready in 6 seconds.",
         "unlock": "🔓 Unlock Content",
         "results": "📽️ **Search Results (Movies):**",
