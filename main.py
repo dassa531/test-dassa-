@@ -13,7 +13,7 @@ TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Monetag Smart Link එක මෙතනට දාන්න
-SMART_LINK = "https://your-monetag-smartlink-url.com" 
+SMART_LINK = "https://otieu.com/4/10513841" 
 
 genai.configure(api_key=GEMINI_API_KEY)
 ai_model = genai.GenerativeModel('gemini-2.0-flash')
