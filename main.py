@@ -21,6 +21,8 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 STRINGS = {
     "si": {
         "welcome": "👋 ආයුබෝවන් {name}!\n\n🚀 **filxel AI v100.0**\nමම මූවී සොයා දෙන **filxel** නිල බොට්.",
+        "ads_disclaimer": "⚠️ **Notice:** ඔබ දැනට භාවිතා කරන්නේ අපගේ **Free Plan** එකයි. 
+        ඉදිරියට යාමේදී ඔබට දැන්වීම් (Ads) දර්ශනය විය හැක. ඒ හරහා ලැබෙන ආදායම අපගේ සර්වර් පවත්වා ගැනීමට උපකාරී වේ. ❤️ 🙏",
         "commands": "🔍 **සෙවුම් ක්‍රම:**\n• මූවී එකේ නම එවන්න - Movies 8ක්\n• `/series` [නම] - TV Series විතරක්\n• `/actor` [නම] - නළුවා අනුව\n• `/year` [වසර] - වසර අනුව\n• `/find` [නම] [වසර] - නළුවා + වසර\n• `/trending` - අද ජනප්‍රිය",
         "ad_msg": "⚠️ **Security Check!**\n\nපහත Unlock බටන් එක ක්ලික් කරන්න. තත්පර 6කින් මූවී එක ලැබෙනු ඇත.",
         "unlock": "🔓 Unlock Content",
@@ -29,6 +31,7 @@ STRINGS = {
     },
     "en": {
         "welcome": "👋 Hello {name}!\n\nWelcome to 🚀 **filxel AI v100.0**.\nOfficial **filxel** movie bot.",
+        "ads_disclaimer": "⚠️ **Note:** We use ads to keep this service free. 🙏",
         "commands": "🔍 **Commands:**\n• Send Movie Name - Get 8 Movies\n• `/series` - TV Series Only\n• `/actor` - Actor Search\n• `/year` - Year Search\n• `/find` - Actor + Year\n• `/trending` - Trending Today",
         "ad_msg": "⚠️ **Security Check!**\n\nClick Unlock button. Ready in 6 seconds.",
         "unlock": "🔓 Unlock Content",
@@ -179,5 +182,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_click))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: search_engine(u, c, u.message.text, limit=8)))
     
-    print("🚀 filxel AI v100.0 - Movies Priority Edition Live!")
+    print("🚀 filxel AI v10.0 - Movies Priority Edition Live!")
     app.run_polling()
