@@ -5,6 +5,22 @@ import requests
 import google.generativeai as genai
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from flask import Flask  # අලුතින් එකතු කළා
+from threading import Thread  # අලුතින් එකතු කළා
+
+# --- KEEP ALIVE SERVER --- (Replit එකේ Bot එක දිගටම වැඩ කිරීමට)
+app_flask = Flask('')
+
+@app_flask.route('/')
+def home():
+    return "filxel AI is Online!"
+
+def run():
+    app_flask.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 # --- CONFIGURATION ---
 TOKEN = os.getenv('TOKEN')
@@ -184,6 +200,7 @@ async def ai_search_handler(update, context):
     await search_engine(update, context, ai_res.text.strip())
 
 if __name__ == '__main__':
+    keep_alive()  # මේක හරහා Replit එකේ Bot එක sleep වීම වළක්වයි.
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("Select Language:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🇱🇰 සිංහල", callback_data="setlang_si"), InlineKeyboardButton("🇺🇸 English", callback_data="setlang_en")]]))))
     app.add_handler(CommandHandler("series", lambda u, c: search_engine(u, c, " ".join(c.args), "tv") if c.args else None))
